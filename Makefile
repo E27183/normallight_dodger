@@ -1,7 +1,7 @@
 .PHONY: rm
 
-slowlight:
-	c++ main.cpp -o slowlight -lSDL2
+normallight:
+	c++ main.cpp -o normallight -lSDL2
 
 rm:
-	rm slowlight
+	rm normallight
