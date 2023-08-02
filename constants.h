@@ -11,7 +11,7 @@ const float angular_thruster_power = 1.0;
 
 const int scenario_max_objects = 512;
 const int points_per_object = 16;
-const int millisecond_frame_delay = 15;
+const int millisecond_frame_delay = 75;
 
 const float PI = 3.141592;
 

@@ -24,8 +24,8 @@ struct movement_charcteristics {
 
 point to_cartesian(movement_charcteristics* angular) {
     point out;
-    out.x = angular->velocity * sin(angular->azimuth) * cos(angular->inclination);
-    out.y = angular->velocity * sin(angular->azimuth) * sin(angular->inclination);
+    out.x = angular->velocity * sin(angular->inclination) * cos(angular->azimuth);
+    out.y = angular->velocity * sin(angular->inclination) * sin(angular->azimuth);
     out.z = angular->velocity * cos(angular->inclination);
     return out;
 };
@@ -61,6 +61,16 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
         movement_charcteristics polar = to_polar(&separation_vector);
         polar.azimuth -= azimuth;
         polar.inclination -= inclination;
+        if (polar.azimuth < -PI) {
+            polar.azimuth += 2 * PI;
+        } else if (polar.azimuth > PI) {
+            polar.azimuth -= 2 * PI;
+        };
+        if (polar.inclination < -PI) {
+            polar.inclination += 2 * PI;
+        } else if (polar.inclination > PI) {
+            polar.inclination -= 2 * PI;
+        };
         if (abs(polar.azimuth) >= PI / 2 || abs(polar.inclination) >= PI / 2) {
             vertices[i] = {
                 position: {
@@ -77,8 +87,8 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
                     y: (scale * sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
                 },
                 color: {
-                    r: 255,
-                    g: 0,
+                    r: static_cast<unsigned char>(255.0f - (static_cast<float>(255 * i) / points_per_object)),
+                    g: static_cast<unsigned char>(static_cast<float>(255 * i) / points_per_object),
                     b : 255,
                     a : 255
                 }
@@ -201,15 +211,27 @@ class gameState {
         void update(float delay) {
             if (turning_down) { //if 2 conflicting directions are held they just cancel each other out
                 player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+                if (player_direction_inclination < -PI) {
+                    player_direction_inclination += 2 * PI;
+                };
             };
             if (turning_up) {
                 player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+                if (player_direction_inclination > PI) {
+                    player_direction_inclination -= 2 * PI;
+                };
             };
             if (turning_left) {
                 player_direction_azimuth -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+                if (player_direction_azimuth < -PI) {
+                    player_direction_azimuth += 2 * PI;
+                };
             };
             if (turning_right) {
                 player_direction_azimuth += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+                if (player_direction_azimuth > PI) {
+                    player_direction_azimuth -= 2 * PI;
+                };                
             };
             if (accelerating) {
                 player_velocity += forward_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
@@ -237,9 +259,9 @@ class gameState {
                 };
                 point motion = to_cartesian(&object_movement);
                 for (int j = 0; j < points_per_object; j++) {
-                    objects[i].points[j].x += motion.x;
-                    objects[i].points[j].y += motion.y;
-                    objects[i].points[j].z += motion.z;
+                    // objects[i].points[j].x += motion.x;
+                    // objects[i].points[j].y += motion.y;
+                    // objects[i].points[j].z += motion.z;
                     if (out_of_bounds(objects[i].points[j].x, objects[i].points[j].y, objects[i].points[j].z, object_max_radius)) {
                         create_object(&objects[i]); //Automatically overwrites the old one
                     };
