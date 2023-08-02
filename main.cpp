@@ -26,7 +26,7 @@ point to_cartesian(movement_charcteristics* angular) {
     point out;
     out.x = angular->velocity * sin(angular->azimuth) * cos(angular->inclination);
     out.y = angular->velocity * sin(angular->azimuth) * sin(angular->inclination);
-    out.z = angular->velocity * sin(angular->inclination);
+    out.z = angular->velocity * cos(angular->inclination);
     return out;
 };
 
@@ -48,36 +48,7 @@ movement_charcteristics to_polar(point* cartesian) {
     return out;
 };
 
-// SDL_Vertex to_renderable(movement_charcteristics* angles, int h, int w) {
-//     // if (abs(angles->azimuth) >= PI / 2 || abs(angles->inclination) >= PI / 2) {
-//     //     SDL_Vertex nothing_point = {
-//     //         position: {
-//     //             x: static_cast<float>(w + 1),
-//     //             y: static_cast<float>(h + 1)
-//     //         },
-//     //         color: {0, 0, 0, 0}
-//     //     };
-//     //     return nothing_point;
-//     // };
-//     float scale = lens_modifier * static_cast<float>(max(h, w));
-//     SDL_Vertex out = {
-//         position: {
-//             x: (scale * sin(angles->azimuth) / sin((PI / 2) - angles->azimuth)) + static_cast<float>(w / 2),
-//             y: (scale * sin(angles->inclination) / sin((PI / 2) - angles->inclination)) + static_cast<float>(h / 2)
-//         },
-//         color: {
-//             r: 255,
-//             g: 0,
-//             b : 255,
-//             a : 255
-//         }
-//     };
-//     out.position.x = scale * static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-//     out.position.y = scale * static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-//     return out;
-// };
-
-void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, float x, float y, float z) {
+void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, float x, float y, float z, float azimuth, float inclination) {
     SDL_Vertex vertices[points_per_object];
     int illegal_points = 0;
     float scale = lens_modifier * static_cast<float>(max(h, w));
@@ -88,6 +59,8 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
             z: object->points[i].z - z
         };
         movement_charcteristics polar = to_polar(&separation_vector);
+        polar.azimuth -= azimuth;
+        polar.inclination -= inclination;
         if (abs(polar.azimuth) >= PI / 2 || abs(polar.inclination) >= PI / 2) {
             vertices[i] = {
                 position: {
@@ -101,7 +74,7 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
             vertices[i] = {
                 position: {
                     x: (scale * sin(polar.azimuth) / sin((PI / 2) - polar.azimuth)) + static_cast<float>(w / 2),
-                    y: (scale * sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
+                    y: (scale * -sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
                 },
                 color: {
                     r: 255,
@@ -215,30 +188,54 @@ class gameState {
             SDL_GetWindowSize(window, &w, &h);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
             for (int i = 0; i < this->object_count; i++) {
-                render_object(&this->objects[i], h, w, renderer, this->player_x, this->player_y, this->player_z);
-                // SDL_Vertex vertices[points_per_object];
-                // for (int j = 0; j < points_per_object; j++) {
-                //     point separation_vector = {
-                //         x: this->objects[i].points[j].x - this->player_x,
-                //         y: this->objects[i].points[j].y - this->player_y,
-                //         z: this->objects[i].points[j].z - this->player_z
-                //     };
-                //     movement_charcteristics polar = to_polar(&separation_vector);
-                //     vertices[j] = to_renderable(&polar, h, w);
-                // };
-                // SDL_RenderGeometry(renderer, NULL, vertices, points_per_object, NULL, 0);
+                render_object(&this->objects[i], h, w, renderer, this->player_x, this->player_y, this->player_z, this->player_direction_azimuth, this->player_direction_inclination);
             };
             SDL_RenderPresent(renderer);
         };
         void update(float delay) {
-            if (this->turning_down || this->turning_left || this->turning_right || this->turning_up) {
-
+            if (this->turning_down) { //if 2 conflicting directions are held they just cancel each other out
+                this->player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             };
+            if (this->turning_up) {
+                this->player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            };
+            if (this->turning_left) {
+                this->player_direction_azimuth -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            };
+            if (this->turning_right) {
+                this->player_direction_azimuth += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            };
+            if (this->accelerating) {
+                this->player_velocity += forward_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            } else {
+                this->player_velocity = this->player_velocity * (1 - deceleration_rate * static_cast<float>(millisecond_frame_delay) / 1000.0f);
+            };
+            movement_charcteristics player_movement = {
+                azimuth: this->player_direction_azimuth,
+                inclination: this->player_direction_inclination,
+                velocity: this->player_velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
+            };
+            point movement_event = to_cartesian(&player_movement);
+            this->player_x += movement_event.x;
+            this->player_y += movement_event.y;
+            this->player_z += movement_event.z;
             if (object_count < scenario_max_objects) {
                 create_object(&objects[object_count]);
                 object_count++;
             };
-            for (int i = 0; i < this->object_count; i++) {};
+            for (int i = 0; i < this->object_count; i++) {
+                movement_charcteristics object_movement = {
+                    azimuth: this->objects[i].azimuth,
+                    inclination: this->objects[i].inclination,
+                    velocity: this->objects[i].velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
+                };
+                point motion = to_cartesian(&object_movement);
+                // for (int j = 0; j < points_per_object; j++) {
+                //     this->objects[i].points[j].x += motion.x;
+                //     this->objects[i].points[j].y += motion.y;
+                //     this->objects[i].points[j].z += motion.z;
+                // };
+            };
         };
         void initialise() {
             srand(time(NULL));
@@ -317,6 +314,10 @@ void handle_event(gameState *state) {
     };
 };
 
+int min(int a, int b) {
+    return a > b ? b : a;
+};
+
 int main(int argc, char *argv[]) {  
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {  
         printf("error initializing SDL: %s\n", SDL_GetError());  
@@ -326,7 +327,7 @@ int main(int argc, char *argv[]) {
     SDL_Window* window = SDL_CreateWindow("Normallight",  
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
-        DisplayMode.w, DisplayMode.h, 0);
+        min(DisplayMode.w, DisplayMode.h), min(DisplayMode.w, DisplayMode.h), 0);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED); 
     gameState state;
     state.initialise();

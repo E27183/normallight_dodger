@@ -6,6 +6,7 @@ To move:
 
  - Press space to accelerate forwards.
  - Press the left, right, up and down keys to steer in that direction.
+ - Decelaration happens automatically over time
 
 To compile and play:
  - Ensure you have g++ and libsdl2-dev installed
