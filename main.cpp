@@ -171,6 +171,12 @@ void create_object(flying_object* shell) {
     };
 };
 
+bool out_of_bounds(float x, float y, float z, float tolerance) {
+    return x > boundary_x_high + tolerance || x < boundary_x_low - tolerance || 
+        y > boundary_y_high + tolerance || y < boundary_y_low - tolerance || 
+        z > boundary_z_high + tolerance || z < boundary_z_low - tolerance;
+};
+
 class gameState {
     public:
         float player_x; 
@@ -187,70 +193,73 @@ class gameState {
             int w;
             SDL_GetWindowSize(window, &w, &h);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-            for (int i = 0; i < this->object_count; i++) {
-                render_object(&this->objects[i], h, w, renderer, this->player_x, this->player_y, this->player_z, this->player_direction_azimuth, this->player_direction_inclination);
+            for (int i = 0; i < object_count; i++) {
+                render_object(&objects[i], h, w, renderer, player_x, player_y, player_z, player_direction_azimuth, player_direction_inclination);
             };
             SDL_RenderPresent(renderer);
         };
         void update(float delay) {
-            if (this->turning_down) { //if 2 conflicting directions are held they just cancel each other out
-                this->player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            if (turning_down) { //if 2 conflicting directions are held they just cancel each other out
+                player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             };
-            if (this->turning_up) {
-                this->player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            if (turning_up) {
+                player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             };
-            if (this->turning_left) {
-                this->player_direction_azimuth -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            if (turning_left) {
+                player_direction_azimuth -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             };
-            if (this->turning_right) {
-                this->player_direction_azimuth += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            if (turning_right) {
+                player_direction_azimuth += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             };
-            if (this->accelerating) {
-                this->player_velocity += forward_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            if (accelerating) {
+                player_velocity += forward_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             } else {
-                this->player_velocity = this->player_velocity * (1 - deceleration_rate * static_cast<float>(millisecond_frame_delay) / 1000.0f);
+                player_velocity = player_velocity * (1 - deceleration_rate * static_cast<float>(millisecond_frame_delay) / 1000.0f);
             };
             movement_charcteristics player_movement = {
-                azimuth: this->player_direction_azimuth,
-                inclination: this->player_direction_inclination,
-                velocity: this->player_velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
+                azimuth: player_direction_azimuth,
+                inclination: player_direction_inclination,
+                velocity: player_velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
             };
             point movement_event = to_cartesian(&player_movement);
-            this->player_x += movement_event.x;
-            this->player_y += movement_event.y;
-            this->player_z += movement_event.z;
+            player_x += movement_event.x;
+            player_y += movement_event.y;
+            player_z += movement_event.z;
             if (object_count < scenario_max_objects) {
                 create_object(&objects[object_count]);
                 object_count++;
             };
-            for (int i = 0; i < this->object_count; i++) {
+            for (int i = 0; i < object_count; i++) {
                 movement_charcteristics object_movement = {
-                    azimuth: this->objects[i].azimuth,
-                    inclination: this->objects[i].inclination,
-                    velocity: this->objects[i].velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
+                    azimuth: objects[i].azimuth,
+                    inclination: objects[i].inclination,
+                    velocity: objects[i].velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
                 };
                 point motion = to_cartesian(&object_movement);
-                // for (int j = 0; j < points_per_object; j++) {
-                //     this->objects[i].points[j].x += motion.x;
-                //     this->objects[i].points[j].y += motion.y;
-                //     this->objects[i].points[j].z += motion.z;
-                // };
+                for (int j = 0; j < points_per_object; j++) {
+                    objects[i].points[j].x += motion.x;
+                    objects[i].points[j].y += motion.y;
+                    objects[i].points[j].z += motion.z;
+                    if (out_of_bounds(objects[i].points[j].x, objects[i].points[j].y, objects[i].points[j].z, object_max_radius)) {
+                        create_object(&objects[i]); //Automatically overwrites the old one
+                    };
+                };
             };
         };
         void initialise() {
             srand(time(NULL));
-            this->player_x = 0;
-            this->player_y = 0;
-            this->player_z = 0;
-            this->player_direction_azimuth = 0;
-            this->player_direction_inclination = 0;
-            this->player_velocity = 0;
-            this->object_count = 0;
-            this->accelerating = false;
-            this->turning_down = false;
-            this->turning_up = false;
-            this->turning_left = false;
-            this->turning_right = false;
+            player_x = 0;
+            player_y = 0;
+            player_z = 0;
+            player_direction_azimuth = 0;
+            player_direction_inclination = 0;
+            player_velocity = 0;
+            object_count = 0;
+            accelerating = false;
+            turning_down = false;
+            turning_up = false;
+            turning_left = false;
+            turning_right = false;
         };
     float player_direction_azimuth;
     float player_direction_inclination;

@@ -6,7 +6,7 @@ const float boundary_x_high = 1000.0;
 const float boundary_y_high = 1000.0;
 const float boundary_z_high = 1000.0;
 
-const float forward_thruster_power = 100.0;
+const float forward_thruster_power = 250.0;
 const float angular_thruster_power = 1.0;
 
 const int scenario_max_objects = 512;
@@ -25,4 +25,4 @@ const float max_velocity = 50.0;
 const float object_min_radius = 10.0;
 const float object_max_radius = 20.0;
 
-const float deceleration_rate = 0.01;
+const float deceleration_rate = 0.4;
