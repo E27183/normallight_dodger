@@ -74,7 +74,7 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
             vertices[i] = {
                 position: {
                     x: (scale * sin(polar.azimuth) / sin((PI / 2) - polar.azimuth)) + static_cast<float>(w / 2),
-                    y: (scale * -sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
+                    y: (scale * sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
                 },
                 color: {
                     r: 255,
