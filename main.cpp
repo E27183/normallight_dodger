@@ -64,17 +64,21 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
     movement_charcteristics polar = to_polar(&separation_vector);
     polar.azimuth -= azimuth;
     polar.inclination -= inclination;
-    if (polar.azimuth < -PI) {
-        polar.azimuth += 2 * PI;
-    } else if (polar.azimuth > PI) {
-        polar.azimuth -= 2 * PI;
+    while (abs(polar.azimuth) > PI) {
+        if (polar.azimuth < -PI) {
+            polar.azimuth += 2 * PI;
+        } else if (polar.azimuth > PI) {
+            polar.azimuth -= 2 * PI;
+        };
     };
-    if (polar.inclination < -PI) {
-        polar.inclination += 2 * PI;
-    } else if (polar.inclination > PI) {
-        polar.inclination -= 2 * PI;
+    while (abs(polar.inclination) > PI / 2.0f) {
+        if (polar.inclination < -PI / 2.0f) {
+            polar.inclination += PI;
+        } else if (polar.inclination > PI / 2.0f) {
+            polar.inclination -= PI;
+        };
     };
-    if (abs(polar.azimuth) >= PI / 2 || abs(polar.inclination) >= PI / 2) {
+    if (abs(polar.azimuth) >= PI / 2) {
         return;
     } else {
         centre = {
