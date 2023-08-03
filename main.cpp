@@ -10,7 +10,8 @@ struct point {
 };
 
 struct flying_object {
-    point points[points_per_object];
+    point centre;
+    float radius;
     float azimuth; 
     float inclination;
     float velocity;
@@ -49,67 +50,68 @@ movement_charcteristics to_polar(point* cartesian) {
 };
 
 void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, float x, float y, float z, float azimuth, float inclination) {
-    SDL_Vertex vertices[points_per_object];
-    int illegal_points = 0;
+
+    SDL_Vertex centre;
+
     float scale = lens_modifier * static_cast<float>(max(h, w));
-    for (int i = 0; i < points_per_object; i++) {
-        point separation_vector = {
-            x: object->points[i].x - x,
-            y: object->points[i].y - y,
-            z: object->points[i].z - z
-        };
-        movement_charcteristics polar = to_polar(&separation_vector);
-        polar.azimuth -= azimuth;
-        polar.inclination -= inclination;
-        if (polar.azimuth < -PI) {
-            polar.azimuth += 2 * PI;
-        } else if (polar.azimuth > PI) {
-            polar.azimuth -= 2 * PI;
-        };
-        if (polar.inclination < -PI) {
-            polar.inclination += 2 * PI;
-        } else if (polar.inclination > PI) {
-            polar.inclination -= 2 * PI;
-        };
-        if (abs(polar.azimuth) >= PI / 2 || abs(polar.inclination) >= PI / 2) {
-            vertices[i] = {
-                position: {
-                    x: 0,
-                    y: 0
-                },
-                color: {0, 0, 0, 0}
-            };
-            illegal_points++;
-        } else {
-            vertices[i] = {
-                position: {
-                    x: (scale * sin(polar.azimuth) / sin((PI / 2) - polar.azimuth)) + static_cast<float>(w / 2),
-                    y: (scale * sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
-                },
-                color: {
-                    r: static_cast<unsigned char>(255.0f - (static_cast<float>(255 * i) / points_per_object)),
-                    g: static_cast<unsigned char>(static_cast<float>(255 * i) / points_per_object),
-                    b : 255,
-                    a : 255
-                }
-            };
+
+
+    point separation_vector = {
+        x: object->centre.x - x,
+        y: object->centre.y - y,
+        z: object->centre.z - z
+    };
+    movement_charcteristics polar = to_polar(&separation_vector);
+    polar.azimuth -= azimuth;
+    polar.inclination -= inclination;
+    if (polar.azimuth < -PI) {
+        polar.azimuth += 2 * PI;
+    } else if (polar.azimuth > PI) {
+        polar.azimuth -= 2 * PI;
+    };
+    if (polar.inclination < -PI) {
+        polar.inclination += 2 * PI;
+    } else if (polar.inclination > PI) {
+        polar.inclination -= 2 * PI;
+    };
+    if (abs(polar.azimuth) >= PI / 2 || abs(polar.inclination) >= PI / 2) {
+        return;
+    } else {
+        centre = {
+            position: {
+                x: (scale * sin(polar.azimuth) / sin((PI / 2) - polar.azimuth)) + static_cast<float>(w / 2),
+                y: (scale * sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
+            },
+            color: {
+                r: 0,
+                g: 0,
+                b : 255,
+                a : 255
+            }
         };
     };
-    SDL_Vertex to_print[3 * max((points_per_object - illegal_points) * (points_per_object - illegal_points - 1) * (points_per_object - illegal_points - 2), 0)];
-    int index = 0;
+
+
+    SDL_Vertex to_print[points_per_object * 3];
+    float distance = scale * object->radius / polar.velocity;
     for (int i = 0; i < points_per_object; i++) {
-        for (int j = 0; j < points_per_object; j++) {
-            for (int k = 0; k < points_per_object; k++) {
-                if (i != j && i != k && j != k && vertices[i].color.r > 0 && vertices[j].color.r > 0 && vertices[k].color.r > 0) {
-                    to_print[index] = vertices[i];
-                    to_print[index+1] = vertices[j];
-                    to_print[index+2] = vertices[k];
-                    index += 3;
-                };
-            };
+        to_print[i * 3] = {
+            position: {
+                x: centre.position.x + distance * sin(i * 2 * PI / static_cast<float>(points_per_object)),
+                y: centre.position.y + distance * cos(i * 2 * PI / static_cast<float>(points_per_object)),
+            },
+            color: {255, 0, 0, 255},
         };
+        to_print[i * 3 + 1] = {
+            position: {
+                x: centre.position.x + distance * sin((i + 1) * 2 * PI / static_cast<float>(points_per_object)),
+                y: centre.position.y + distance * cos((i + 1) * 2 * PI / static_cast<float>(points_per_object)),
+            },
+            color: {255, 0, 0, 255},
+        };
+        to_print[i * 3 + 2] = centre;
     };
-    SDL_RenderGeometry(renderer, NULL, to_print, index, NULL, 0);
+    SDL_RenderGeometry(renderer, NULL, to_print, points_per_object * 3, NULL, 0);
 };
 
 float random_place(float min, float max) {
@@ -166,19 +168,12 @@ void create_object(flying_object* shell) {
     shell->azimuth = (2.0f * PI * static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) - PI;
     shell->inclination = (PI * static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) - (PI / 2.0f);
     shell->velocity = min_velocity + (max_velocity - min_velocity) * static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-    for (int i = 0; i < points_per_object; i++) {
-        movement_charcteristics vectorized = {
-            azimuth: (2.0f * PI * static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) - PI,
-            inclination: (PI * static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) - (PI / 2.0f),
-            velocity: object_min_radius + (object_max_radius - object_min_radius) * static_cast<float>(rand()) / static_cast<float>(RAND_MAX)
-        };
-        point pointified = to_cartesian(&vectorized);
-        shell->points[i] = {
-            x: centre.x + pointified.x,
-            y: centre.y + pointified.y,
-            z: centre.z + pointified.z
-        };
+    shell->centre = {
+        x: centre.x,
+        y: centre.y,
+        z: centre.z
     };
+    shell->radius = object_min_radius + (object_max_radius - object_min_radius) * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX));
 };
 
 bool out_of_bounds(float x, float y, float z, float tolerance) {
@@ -258,13 +253,11 @@ class gameState {
                     velocity: objects[i].velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
                 };
                 point motion = to_cartesian(&object_movement);
-                for (int j = 0; j < points_per_object; j++) {
-                    // objects[i].points[j].x += motion.x;
-                    // objects[i].points[j].y += motion.y;
-                    // objects[i].points[j].z += motion.z;
-                    if (out_of_bounds(objects[i].points[j].x, objects[i].points[j].y, objects[i].points[j].z, object_max_radius)) {
-                        create_object(&objects[i]); //Automatically overwrites the old one
-                    };
+                objects[i].centre.x += motion.x;
+                objects[i].centre.y += motion.y;
+                objects[i].centre.z += motion.z;
+                if (out_of_bounds(objects[i].centre.x, objects[i].centre.y, objects[i].centre.z, objects[i].radius)) {
+                    create_object(&objects[i]); //Automatically overwrites the old one
                 };
             };
         };
