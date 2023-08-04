@@ -1,6 +1,6 @@
 ## NORMALLIGHT
 
-In this game, you must navigate within a large boundary box while avoiding contact with the objects flying around you! The game continues until you strike the boundary or another object.
+In this game, you must navigate within a large boundary box while avoiding contact with the ors flying around you! The game continues until you strike the boundary or an orb.
 
 To move:
 
@@ -12,3 +12,13 @@ To compile and play:
  - Ensure you have g++ and libsdl2-dev installed
  - Download the source code
  - Navigate to the root folder and run ```make fullstack```
+
+
+### Known bugs and missing features
+
+ - Overlap of orbs does not correspond with distance
+ - Edge cases involving the ship observing orbs at +/- PI/2 inclination causes rendering bugs around this region
+ - Orbs behind the ship are visible as if they are in front
+ - The current ship position is not visible
+ - Dying closes the gui instead of rendering a "loss" screen
+ - Orbs touching each other or the ship or each other has no effect and does not result in losing

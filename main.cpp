@@ -207,15 +207,15 @@ class gameState {
             };
             SDL_RenderPresent(renderer);
         };
-        void update(float delay) {
+        void update(float delay, bool* game_over) {
             if (turning_down) { //if 2 conflicting directions are held they just cancel each other out
-                player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+                player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
                 if (player_direction_inclination < -PI) {
                     player_direction_inclination += 2 * PI;
                 };
             };
             if (turning_up) {
-                player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+                player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
                 if (player_direction_inclination > PI) {
                     player_direction_inclination -= 2 * PI;
                 };
@@ -246,6 +246,10 @@ class gameState {
             player_x += movement_event.x;
             player_y += movement_event.y;
             player_z += movement_event.z;
+            if (!ignore_losing && out_of_bounds(player_x, player_y, player_z, 0)) {
+                    *game_over = true;
+                    std::cout << "Game lost: player out of bounds\n";
+                };
             if (object_count < scenario_max_objects) {
                 create_object(&objects[object_count]);
                 object_count++;
@@ -359,9 +363,10 @@ int main(int argc, char *argv[]) {
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED); 
     gameState state;
     state.initialise();
-    while (1) {
+    bool game_over = false;
+    while (!game_over) {
         handle_event(&state);
-        state.update(millisecond_frame_delay);
+        state.update(millisecond_frame_delay, &game_over);
         state.render(renderer, window);
         SDL_Delay(millisecond_frame_delay);
     };
