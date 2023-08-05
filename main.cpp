@@ -31,8 +31,35 @@ point to_cartesian(movement_charcteristics* angular) {
     return out;
 };
 
+bool in_range(float a) {
+    return a < PI / 2.0f && a > -PI / 2.0f;
+};
+
 float sign(float a) {
     return a > 0 ? 1.0 : a < 0 ? -1.0 : 0.0;
+};
+
+float normalise(float a) {
+    return a > PI ? a - 2 * PI : a < -PI ? a + 2 * PI : a;
+};
+
+float mini_normalise(float a) {
+    return a > PI / 2.0f ? a -  PI : a < -PI / 2.0f ? a + PI : a;
+};
+
+void perspective_transform_render(float perspective_azumith, float azumith, float perspective_inclination, float inclination, float* output) {
+    if (abs(normalise(perspective_azumith - azumith)) < PI) {
+        *(output) = normalise(azumith - perspective_azumith);
+        *(output + 1) = normalise(inclination - perspective_inclination);
+    } else {
+        if (sign(inclination) != sign(perspective_inclination)) {
+            *(output + 2) = -1.0f;
+            return;
+        };
+        *(output) = normalise(azumith - perspective_azumith + PI);
+        *(output + 1) = normalise(PI - abs(inclination) - abs(perspective_inclination)) * sign(perspective_inclination);
+    };
+    *(output + 2) = in_range(*(output)) && in_range(*(output + 1)) ? 0.0f : -1.0f;
 };
 
 int max(int a, int b) {
@@ -49,7 +76,7 @@ movement_charcteristics to_polar(point* cartesian) {
     return out;
 };
 
-void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, float x, float y, float z, float azimuth, float inclination) {
+void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, float x, float y, float z, float azimuth, float inclination, bool upside_down) {
 
     SDL_Vertex centre;
 
@@ -62,40 +89,26 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
         z: object->centre.z - z
     };
     movement_charcteristics polar = to_polar(&separation_vector);
-    polar.azimuth -= azimuth;
-    polar.inclination -= inclination;
-    while (abs(polar.azimuth) > PI) {
-        if (polar.azimuth < -PI) {
-            polar.azimuth += 2 * PI;
-        } else if (polar.azimuth > PI) {
-            polar.azimuth -= 2 * PI;
-        };
-    };
-    while (abs(polar.inclination) > PI / 2.0f) {
-        if (polar.inclination < -PI / 2.0f) {
-            polar.inclination += PI;
-        } else if (polar.inclination > PI / 2.0f) {
-            polar.inclination -= PI;
-        };
-    };
-    if (abs(polar.azimuth) >= PI / 2) {
+    float perspective[3];
+    perspective_transform_render(azimuth, polar.azimuth, inclination, polar.inclination, &perspective[0]);
+    if (perspective[2] < 0) {
         return;
-    } else {
-        centre = {
-            position: {
-                x: (scale * sin(polar.azimuth) / sin((PI / 2) - polar.azimuth)) + static_cast<float>(w / 2),
-                y: (scale * sin(polar.inclination) / sin((PI / 2) - polar.inclination)) + static_cast<float>(h / 2)
-            },
-            color: {
-                r: 0,
-                g: 0,
-                b : 255,
-                a : 255
-            }
-        };
     };
-
-
+    if (upside_down) {
+        perspective[1] = -perspective[1];
+    };
+    centre = {
+        position: {
+            x: (scale * sin(perspective[0]) / sin((PI / 2) - perspective[0])) + static_cast<float>(w / 2),
+            y: (scale * sin(perspective[1]) / sin((PI / 2) - perspective[1])) + static_cast<float>(h / 2)
+        },
+        color: {
+            r: 0,
+            g: 0,
+            b : 255,
+            a : 255
+        }
+    };
     SDL_Vertex to_print[points_per_object * 3];
     float distance = scale * object->radius / polar.velocity;
     for (int i = 0; i < points_per_object; i++) {
@@ -196,6 +209,7 @@ class gameState {
         bool turning_right;
         bool turning_up;
         bool turning_down;
+        bool upside_down;
         void render(SDL_Renderer* renderer, SDL_Window* window) {
             SDL_RenderClear(renderer);
             int h;
@@ -203,32 +217,36 @@ class gameState {
             SDL_GetWindowSize(window, &w, &h);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
             for (int i = 0; i < object_count; i++) {
-                render_object(&objects[i], h, w, renderer, player_x, player_y, player_z, player_direction_azimuth, player_direction_inclination);
+                render_object(&objects[i], h, w, renderer, player_x, player_y, player_z, player_direction_azimuth, player_direction_inclination, upside_down);
             };
             SDL_RenderPresent(renderer);
         };
         void update(float delay, bool* game_over) {
-            if (turning_down) { //if 2 conflicting directions are held they just cancel each other out
+            if ((turning_down && !upside_down) || (turning_up && upside_down)) { //if 2 conflicting directions are held they just cancel each other out
                 player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_inclination < -PI) {
-                    player_direction_inclination += 2 * PI;
+                if (player_direction_inclination > PI) {
+                    player_direction_inclination = PI;
+                    upside_down = !upside_down;
+                    player_direction_azimuth = player_direction_azimuth > 0 ? player_direction_azimuth - PI : player_direction_azimuth + PI;
                 };
             };
-            if (turning_up) {
+            if ((turning_up && !upside_down) || (turning_down && upside_down)) {
                 player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_inclination > PI) {
-                    player_direction_inclination -= 2 * PI;
+                if (player_direction_inclination < 0.0f) {
+                    player_direction_inclination = 0.0f;
+                    upside_down = !upside_down;
+                    player_direction_azimuth = player_direction_azimuth > 0 ? player_direction_azimuth - PI : player_direction_azimuth + PI;
                 };
             };
             if (turning_left) {
                 player_direction_azimuth -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_azimuth < -PI) {
+                if (player_direction_azimuth < 0) {
                     player_direction_azimuth += 2 * PI;
                 };
             };
             if (turning_right) {
                 player_direction_azimuth += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_azimuth > PI) {
+                if (player_direction_azimuth > 2 * PI) {
                     player_direction_azimuth -= 2 * PI;
                 };                
             };
@@ -275,7 +293,7 @@ class gameState {
             player_y = 0;
             player_z = 0;
             player_direction_azimuth = 0;
-            player_direction_inclination = 0;
+            player_direction_inclination = PI / 2.0f;
             player_velocity = 0;
             object_count = 0;
             accelerating = false;
@@ -283,6 +301,7 @@ class gameState {
             turning_up = false;
             turning_left = false;
             turning_right = false;
+            upside_down = false;
         };
     float player_direction_azimuth;
     float player_direction_inclination;
