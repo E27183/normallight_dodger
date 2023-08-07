@@ -31,35 +31,8 @@ point to_cartesian(movement_charcteristics* angular) {
     return out;
 };
 
-bool in_range(float a) {
-    return a < PI / 2.0f && a > -PI / 2.0f;
-};
-
 float sign(float a) {
     return a > 0 ? 1.0 : a < 0 ? -1.0 : 0.0;
-};
-
-float normalise(float a) {
-    return a > PI ? a - 2 * PI : a < -PI ? a + 2 * PI : a;
-};
-
-float mini_normalise(float a) {
-    return a > PI / 2.0f ? a -  PI : a < -PI / 2.0f ? a + PI : a;
-};
-
-void perspective_transform_render(float perspective_azumith, float azumith, float perspective_inclination, float inclination, float* output) {
-    if (abs(normalise(perspective_azumith - azumith)) < PI) {
-        *(output) = normalise(azumith - perspective_azumith);
-        *(output + 1) = normalise(inclination - perspective_inclination);
-    } else {
-        if (sign(inclination) != sign(perspective_inclination)) {
-            *(output + 2) = -1.0f;
-            return;
-        };
-        *(output) = normalise(azumith - perspective_azumith + PI);
-        *(output + 1) = normalise(PI - abs(inclination) - abs(perspective_inclination)) * sign(perspective_inclination);
-    };
-    *(output + 2) = in_range(*(output)) && in_range(*(output + 1)) ? 0.0f : -1.0f;
 };
 
 int max(int a, int b) {
@@ -76,31 +49,51 @@ movement_charcteristics to_polar(point* cartesian) {
     return out;
 };
 
-void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, float x, float y, float z, float azimuth, float inclination, bool upside_down) {
+void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, float x, float y, float z, point* forward, point* right, point* up) {
 
     SDL_Vertex centre;
 
     float scale = lens_modifier * static_cast<float>(max(h, w));
-
 
     point separation_vector = {
         x: object->centre.x - x,
         y: object->centre.y - y,
         z: object->centre.z - z
     };
-    movement_charcteristics polar = to_polar(&separation_vector);
-    float perspective[3];
-    perspective_transform_render(azimuth, polar.azimuth, inclination, polar.inclination, &perspective[0]);
-    if (perspective[2] < 0) {
+
+    //Order is forward, right then up
+
+    // float determinant = forward->x * right->y * up->z + right->x * up->y * forward->z + up->x * forward->y * right->z - 
+    //     forward->x * up->y * right->z - right->x * forward->y * up->z - up->x * right->y * forward->z; Is always 1 if normalising properly
+
+    float adjoint[3][3] = {{
+        right->y * up->z - right->z * up->y,
+        -right->x * up->z + right->z * up->x,
+        right->x * up->y - right->y * up->x
+    }, {
+        -forward->y * up->z + forward->z * up->y,
+        forward->x * up->z - forward->z * up->x,
+        -forward->x * up->y + forward->y * up->x
+    }, {
+        forward->y * right->z - forward->z * right->y,
+        -forward->x * right->z + forward->z * right->x,
+        forward->x * right->y - forward->y * right->x
+    }};
+
+    point converted_separation_vector = {
+        x: (separation_vector.x * adjoint[0][0] + separation_vector.y * adjoint[0][1] + separation_vector.z  * adjoint[0][1]),
+        y: (separation_vector.x * adjoint[1][0] + separation_vector.y * adjoint[1][1] + separation_vector.z  * adjoint[1][2]),
+        z: (separation_vector.x * adjoint[2][0] + separation_vector.y * adjoint[2][1] + separation_vector.z  * adjoint[2][2])
+    };
+
+    if (converted_separation_vector.x < 0) {
         return;
     };
-    if (upside_down) {
-        perspective[1] = -perspective[1];
-    };
+
     centre = {
         position: {
-            x: (scale * sin(perspective[0]) / sin((PI / 2) - perspective[0])) + static_cast<float>(w / 2),
-            y: (scale * sin(perspective[1]) / sin((PI / 2) - perspective[1])) + static_cast<float>(h / 2)
+            x: (scale * converted_separation_vector.y / converted_separation_vector.x) + static_cast<float>(w / 2),
+            y: (scale * converted_separation_vector.z / converted_separation_vector.x) + static_cast<float>(h / 2)
         },
         color: {
             r: 0,
@@ -110,7 +103,9 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
         }
     };
     SDL_Vertex to_print[points_per_object * 3];
-    float distance = scale * object->radius / polar.velocity;
+    float distance = scale * object->radius / sqrt(separation_vector.x * separation_vector.x + 
+    separation_vector.y * separation_vector.y + 
+    separation_vector.z * separation_vector.z);
     for (int i = 0; i < points_per_object; i++) {
         to_print[i * 3] = {
             position: {
@@ -199,6 +194,13 @@ bool out_of_bounds(float x, float y, float z, float tolerance) {
         z > boundary_z_high + tolerance || z < boundary_z_low - tolerance;
 };
 
+void normalise(point* a) {
+    float divisor = sqrt(a->x * a->x + a->y * a->y + a->z * a->z);
+    a->x = a->x / divisor;
+    a->y = a->y / divisor;
+    a->z = a->z / divisor;
+};
+
 class gameState {
     public:
         float player_x; 
@@ -209,7 +211,9 @@ class gameState {
         bool turning_right;
         bool turning_up;
         bool turning_down;
-        bool upside_down;
+        point forward_belief;
+        point right_belief;
+        point up_belief;
         void render(SDL_Renderer* renderer, SDL_Window* window) {
             SDL_RenderClear(renderer);
             int h;
@@ -217,53 +221,59 @@ class gameState {
             SDL_GetWindowSize(window, &w, &h);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
             for (int i = 0; i < object_count; i++) {
-                render_object(&objects[i], h, w, renderer, player_x, player_y, player_z, player_direction_azimuth, player_direction_inclination, upside_down);
+                render_object(&objects[i], h, w, renderer, player_x, player_y, player_z, &forward_belief, &right_belief, &up_belief);
             };
             SDL_RenderPresent(renderer);
         };
-        void update(float delay, bool* game_over) {
-            if ((turning_down && !upside_down) || (turning_up && upside_down)) { //if 2 conflicting directions are held they just cancel each other out
-                player_direction_inclination += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_inclination > PI) {
-                    player_direction_inclination = PI;
-                    upside_down = !upside_down;
-                    player_direction_azimuth = player_direction_azimuth > 0 ? player_direction_azimuth - PI : player_direction_azimuth + PI;
-                };
-            };
-            if ((turning_up && !upside_down) || (turning_down && upside_down)) {
-                player_direction_inclination -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_inclination < 0.0f) {
-                    player_direction_inclination = 0.0f;
-                    upside_down = !upside_down;
-                    player_direction_azimuth = player_direction_azimuth > 0 ? player_direction_azimuth - PI : player_direction_azimuth + PI;
-                };
-            };
-            if (turning_left) {
-                player_direction_azimuth -= angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_azimuth < 0) {
-                    player_direction_azimuth += 2 * PI;
-                };
-            };
-            if (turning_right) {
-                player_direction_azimuth += angular_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-                if (player_direction_azimuth > 2 * PI) {
-                    player_direction_azimuth -= 2 * PI;
-                };                
-            };
+        void update(bool* game_over) {
             if (accelerating) {
                 player_velocity += forward_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             } else {
                 player_velocity = player_velocity * (1 - deceleration_rate * static_cast<float>(millisecond_frame_delay) / 1000.0f);
             };
-            movement_charcteristics player_movement = {
-                azimuth: player_direction_azimuth,
-                inclination: player_direction_inclination,
-                velocity: player_velocity * static_cast<float>(millisecond_frame_delay) / 1000.0f
+            float sin_diff = sin(angular_change);
+            float cos_diff = cos(angular_change);
+            if (turning_left != turning_right) {
+                point temp_right = {
+                    x: right_belief.x,
+                    y: right_belief.y,
+                    z: right_belief.z
+                };
+                right_belief = {
+                    x: cos_diff * right_belief.x + sin_diff * (turning_left - turning_right) * forward_belief.x,
+                    y: cos_diff * right_belief.y + sin_diff * (turning_left - turning_right) * forward_belief.y,
+                    z: cos_diff * right_belief.z + sin_diff * (turning_left - turning_right) * forward_belief.z
+                };
+                forward_belief = {
+                    x: cos_diff * forward_belief.x + sin_diff * (turning_right - turning_left) * temp_right.x,
+                    y: cos_diff * forward_belief.y + sin_diff * (turning_right - turning_left) * temp_right.y,
+                    z: cos_diff * forward_belief.z + sin_diff * (turning_right - turning_left) * temp_right.z
+                };
+                normalise(&right_belief);
+                normalise(&forward_belief);
             };
-            point movement_event = to_cartesian(&player_movement);
-            player_x += movement_event.x;
-            player_y += movement_event.y;
-            player_z += movement_event.z;
+            if (turning_down != turning_up) {
+                point temp_up = {
+                    x: up_belief.x,
+                    y: up_belief.y,
+                    z: up_belief.z
+                };
+                up_belief = {
+                    x: cos_diff * up_belief.x + sin_diff * (turning_down - turning_up) * forward_belief.x,
+                    y: cos_diff * up_belief.y + sin_diff * (turning_down - turning_up) * forward_belief.y,
+                    z: cos_diff * up_belief.z + sin_diff * (turning_down - turning_up) * forward_belief.z
+                };
+                forward_belief = {
+                    x: cos_diff * forward_belief.x + sin_diff * (turning_up - turning_down) * temp_up.x,
+                    y: cos_diff * forward_belief.y + sin_diff * (turning_up - turning_down) * temp_up.y,
+                    z: cos_diff * forward_belief.z + sin_diff * (turning_up - turning_down) * temp_up.z
+                };
+                normalise(&up_belief);
+                normalise(&forward_belief);
+            };
+            player_x += player_velocity * forward_belief.x * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            player_y += player_velocity * forward_belief.y * static_cast<float>(millisecond_frame_delay) / 1000.0f;
+            player_z += player_velocity * forward_belief.z * static_cast<float>(millisecond_frame_delay) / 1000.0f;
             if (!ignore_losing && out_of_bounds(player_x, player_y, player_z, 0)) {
                     *game_over = true;
                     std::cout << "Game lost: player out of bounds\n";
@@ -292,8 +302,9 @@ class gameState {
             player_x = 0;
             player_y = 0;
             player_z = 0;
-            player_direction_azimuth = 0;
-            player_direction_inclination = PI / 2.0f;
+            forward_belief = {1, 0, 0};
+            right_belief = {0, 1, 0};
+            up_belief = {0, 0, 1};
             player_velocity = 0;
             object_count = 0;
             accelerating = false;
@@ -301,10 +312,7 @@ class gameState {
             turning_up = false;
             turning_left = false;
             turning_right = false;
-            upside_down = false;
         };
-    float player_direction_azimuth;
-    float player_direction_inclination;
     float player_velocity;
     flying_object objects[scenario_max_objects];
     int object_count;
@@ -385,7 +393,7 @@ int main(int argc, char *argv[]) {
     bool game_over = false;
     while (!game_over) {
         handle_event(&state);
-        state.update(millisecond_frame_delay, &game_over);
+        state.update(&game_over);
         state.render(renderer, window);
         SDL_Delay(millisecond_frame_delay);
     };
