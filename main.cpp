@@ -127,50 +127,49 @@ float random_place(float min, float max) {
 void create_object(flying_object *shell) {
     int flag = rand() % 6;
     point centre;
-    switch (flag)
-    {
-    case 0:
-        centre = {
-            x : boundary_x_low,
-            y : random_place(boundary_y_low, boundary_y_high),
-            z : random_place(boundary_z_low, boundary_z_high)
-        };
-        break;
-    case 1:
-        centre = {
-            x : boundary_x_high,
-            y : random_place(boundary_y_low, boundary_y_high),
-            z : random_place(boundary_z_low, boundary_z_high)
-        };
-        break;
-    case 2:
-        centre = {
-            x : random_place(boundary_x_low, boundary_x_high),
-            y : boundary_y_low,
-            z : random_place(boundary_z_low, boundary_z_high)
-        };
-        break;
-    case 3:
-        centre = {
-            x : random_place(boundary_x_low, boundary_x_high),
-            y : boundary_y_high,
-            z : random_place(boundary_z_low, boundary_z_high)
-        };
-        break;
-    case 4:
-        centre = {
-            x : random_place(boundary_x_low, boundary_x_high),
-            y : random_place(boundary_y_low, boundary_y_high),
-            z : boundary_z_low
-        };
-        break;
-    case 5:
-        centre = {
-            x : random_place(boundary_x_low, boundary_x_high),
-            y : random_place(boundary_y_low, boundary_y_high),
-            z : boundary_z_high
-        };
-        break;
+    switch (flag) {
+        case 0:
+            centre = {
+                x : boundary_x_low,
+                y : random_place(boundary_y_low, boundary_y_high),
+                z : random_place(boundary_z_low, boundary_z_high)
+            };
+            break;
+        case 1:
+            centre = {
+                x : boundary_x_high,
+                y : random_place(boundary_y_low, boundary_y_high),
+                z : random_place(boundary_z_low, boundary_z_high)
+            };
+            break;
+        case 2:
+            centre = {
+                x : random_place(boundary_x_low, boundary_x_high),
+                y : boundary_y_low,
+                z : random_place(boundary_z_low, boundary_z_high)
+            };
+            break;
+        case 3:
+            centre = {
+                x : random_place(boundary_x_low, boundary_x_high),
+                y : boundary_y_high,
+                z : random_place(boundary_z_low, boundary_z_high)
+            };
+            break;
+        case 4:
+            centre = {
+                x : random_place(boundary_x_low, boundary_x_high),
+                y : random_place(boundary_y_low, boundary_y_high),
+                z : boundary_z_low
+            };
+            break;
+        case 5:
+            centre = {
+                x : random_place(boundary_x_low, boundary_x_high),
+                y : random_place(boundary_y_low, boundary_y_high),
+                z : boundary_z_high
+            };
+            break;
     };
     shell->azimuth = (2.0f * PI * static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) - PI;
     shell->inclination = (PI * static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) - (PI / 2.0f);
@@ -196,6 +195,54 @@ void normalise(point *a) {
     a->z = a->z / divisor;
 };
 
+struct index_distance {
+    int index;
+    float distance;
+};
+
+void index_sort(int start, int end, index_distance* arr) {
+    if (end - start < 2) {
+        return;
+    };
+    if (end - start == 2) {
+        if (arr[start].distance > arr[start + 1].distance) {
+            index_distance tmp = arr[start];
+            arr[start] = arr[start + 1];
+            arr[start + 1] = tmp;
+        };
+        return;
+    };
+    index_sort(start, start + (end - start) / 2, arr);
+    index_sort(start + (end - start) / 2, end, arr);
+    index_distance out[end - start];
+    int i = 0;
+    int pointer_1 = 0;
+    int pointer_2 = (end - start) / 2;
+    while (pointer_1 < (end - start) / 2 && pointer_2 < end - start) {
+        if (arr[start + pointer_1].distance < arr[start + pointer_2].distance) {
+            out[i] = arr[start + pointer_1];
+            pointer_1++;
+        } else {
+            out[i] = arr[start + pointer_2];
+            pointer_2++;
+        };
+        i++;
+    };
+    while (pointer_1 < (end - start) / 2) {
+        out[i] = arr[start + pointer_1];
+        pointer_1++;
+        i++;
+    };
+    while (pointer_2 < end - start) {
+        out[i] = arr[start + pointer_2];
+        pointer_2++;
+        i++;
+    };
+    for (int j = 0; j < end - start; j++) {
+        arr[start + j] = out[j];
+    };
+};
+
 class gameState {
     public:
         time_t start_time;
@@ -218,15 +265,25 @@ class gameState {
             SDL_FreeSurface(surfaceMessage);
             SDL_DestroyTexture(Message);
         };
-        void render(SDL_Renderer* renderer, SDL_Window* window, TTF_Font* font, SDL_Color* colour)
-        {
+        void render(SDL_Renderer* renderer, SDL_Window* window, TTF_Font* font, SDL_Color* colour) {
             SDL_RenderClear(renderer);
             int h;
             int w;
             SDL_GetWindowSize(window, &w, &h);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            index_distance order[object_count];
             for (int i = 0; i < object_count; i++) {
-                render_object(&objects[i], h, w, renderer, player_x, player_y, player_z, &forward_belief, &right_belief, &up_belief);
+                float distance = sqrt((player_x - objects[i].centre.x) * (player_x - objects[i].centre.x) +
+                    (player_y - objects[i].centre.y) * (player_y - objects[i].centre.y) +
+                    (player_z - objects[i].centre.z) * (player_z - objects[i].centre.z));
+                order[i] = {
+                    index: i,
+                    distance: distance
+                };
+            };
+            index_sort(0, object_count, &order[0]);
+            for (int i = 0; i < object_count; i++) {
+                render_object(&objects[order[i].index], h, w, renderer, player_x, player_y, player_z, &forward_belief, &right_belief, &up_belief);
             };
             char buffer[64];
             snprintf(buffer, 64, "x: %f | y: %f | z: %f", player_x, player_y, player_z);
@@ -235,14 +292,10 @@ class gameState {
             drop_text(false, &buffer[0], colour, renderer, font, w);
             SDL_RenderPresent(renderer);
         };
-        void update(bool *game_over)
-        {
-            if (accelerating)
-            {
+        void update(bool *game_over) {
+            if (accelerating) {
                 player_velocity += forward_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
-            }
-            else
-            {
+            } else {
                 player_velocity = player_velocity * (1 - deceleration_rate * static_cast<float>(millisecond_frame_delay) / 1000.0f);
             };
             float sin_diff = sin(angular_change);
@@ -306,14 +359,12 @@ class gameState {
                 objects[i].centre.x += motion.x;
                 objects[i].centre.y += motion.y;
                 objects[i].centre.z += motion.z;
-                if (out_of_bounds(objects[i].centre.x, objects[i].centre.y, objects[i].centre.z, objects[i].radius))
-                {
+                if (out_of_bounds(objects[i].centre.x, objects[i].centre.y, objects[i].centre.z, objects[i].radius)) {
                     create_object(&objects[i]); // Automatically overwrites the old one
                 };
                 if (sqrt((player_x - objects[i].centre.x) * (player_x - objects[i].centre.x) +
                         (player_y - objects[i].centre.y) * (player_y - objects[i].centre.y) +
-                        (player_z - objects[i].centre.z) * (player_z - objects[i].centre.z)) < objects[i].radius)
-                {
+                        (player_z - objects[i].centre.z) * (player_z - objects[i].centre.z)) < objects[i].radius) {
                     *game_over = true;
                     std::cout << "Game lost: impacted flying orb\n";
                 };
@@ -342,68 +393,64 @@ class gameState {
 
     void handle_event(gameState* state, bool* game_over, bool* restarted) {
         SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
-            switch (event.type)
-            {
-            case SDL_QUIT:
-                exit(0);
-                break;
-            case SDL_KEYDOWN:
-                switch (event.key.keysym.scancode)
-                {
-                case SDL_SCANCODE_SPACE:
-                    state->accelerating = true;
+        while (SDL_PollEvent(&event)) {
+            switch (event.type) {
+                case SDL_QUIT:
+                    exit(0);
                     break;
-                case SDL_SCANCODE_UP:
-                    state->turning_up = true;
-                    break;
-                case SDL_SCANCODE_DOWN:
-                    state->turning_down = true;
-                    break;
-                case SDL_SCANCODE_LEFT:
-                    state->turning_left = true;
-                    break;
-                case SDL_SCANCODE_RIGHT:
-                    state->turning_right = true;
-                    break;
-                case SDL_SCANCODE_RETURN:
-                    if (*game_over) {
-                        *game_over = false;
-                        *restarted = true;
+                case SDL_KEYDOWN:
+                    switch (event.key.keysym.scancode) {
+                        case SDL_SCANCODE_SPACE:
+                            state->accelerating = true;
+                            break;
+                        case SDL_SCANCODE_UP:
+                            state->turning_up = true;
+                            break;
+                        case SDL_SCANCODE_DOWN:
+                            state->turning_down = true;
+                            break;
+                        case SDL_SCANCODE_LEFT:
+                            state->turning_left = true;
+                            break;
+                        case SDL_SCANCODE_RIGHT:
+                            state->turning_right = true;
+                            break;
+                        case SDL_SCANCODE_RETURN:
+                            if (*game_over) {
+                                *game_over = false;
+                                *restarted = true;
+                            };
+                            break;
+                        case SDL_SCANCODE_ESCAPE:
+                            printf("Exiting program");
+                            exit(0);
+                        default:
+                            break;
                     };
                     break;
-                case SDL_SCANCODE_ESCAPE:
-                    printf("Exiting program");
-                    exit(0);
-                default:
-                    break;
-                };
-                break;
-            case SDL_KEYUP:
-                switch (event.key.keysym.scancode)
-                {
-                case SDL_SCANCODE_SPACE:
-                    state->accelerating = false;
-                    break;
-                case SDL_SCANCODE_UP:
-                    state->turning_up = false;
-                    break;
-                case SDL_SCANCODE_DOWN:
-                    state->turning_down = false;
-                    break;
-                case SDL_SCANCODE_LEFT:
-                    state->turning_left = false;
-                    break;
-                case SDL_SCANCODE_RIGHT:
-                    state->turning_right = false;
+                case SDL_KEYUP:
+                    switch (event.key.keysym.scancode) {
+                        case SDL_SCANCODE_SPACE:
+                            state->accelerating = false;
+                            break;
+                        case SDL_SCANCODE_UP:
+                            state->turning_up = false;
+                            break;
+                        case SDL_SCANCODE_DOWN:
+                            state->turning_down = false;
+                            break;
+                        case SDL_SCANCODE_LEFT:
+                            state->turning_left = false;
+                            break;
+                        case SDL_SCANCODE_RIGHT:
+                            state->turning_right = false;
+                            break;
+                        default:
+                            break;
+                    };
                     break;
                 default:
                     break;
-                };
-                break;
-            default:
-                break;
             };
         };
 };
@@ -414,12 +461,10 @@ int min(int a, int b) {
 
 int main(int argc, char *argv[]) {
     srand(time(NULL));
-    if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
-    {
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         printf("error initializing SDL: %s\n", SDL_GetError());
     };
-    if (TTF_Init() < 0)
-    {
+    if (TTF_Init() < 0) {
         printf("Error initializing SDL_ttf: %s\n", TTF_GetError());
     };
     TTF_Font *font = TTF_OpenFont("LiberationSerif-Regular.ttf", 24);
@@ -435,8 +480,7 @@ int main(int argc, char *argv[]) {
     state.initialise();
     bool game_over = false;
     bool restarted = false;
-    while (true)
-    {
+    while (true) {
         handle_event(&state, &game_over, &restarted);
         if (!game_over) {
             if (restarted) {

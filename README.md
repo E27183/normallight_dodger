@@ -14,8 +14,3 @@ To compile and play:
  - Ensure you have g++, libsdl2-dev and libsdl2-ttf-dev installed
  - Download the source code
  - Navigate to the root folder and run ```make fullstack```
-
-
-### Known bugs and missing features
-
- - Overlap of orbs does not correspond with distance
