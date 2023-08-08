@@ -11,7 +11,7 @@ To move:
  - If you lose and want to play again, press primary enter (not keypad enter)
 
 To compile and play:
- - Ensure you have g++ and libsdl2-dev installed
+ - Ensure you have g++, libsdl2-dev and libsdl2-ttf-dev installed
  - Download the source code
  - Navigate to the root folder and run ```make fullstack```
 
