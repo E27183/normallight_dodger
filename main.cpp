@@ -53,7 +53,7 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
 
     SDL_Vertex centre;
 
-    float scale = lens_modifier * static_cast<float>(max(h, w));
+    float scale = static_cast<float>(max(h, w));
 
     point separation_vector = {
         x: object->centre.x - x,
@@ -68,32 +68,32 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
 
     float adjoint[3][3] = {{
         right->y * up->z - right->z * up->y,
-        -right->x * up->z + right->z * up->x,
-        right->x * up->y - right->y * up->x
+        forward->z * up->y - forward->y * up->z,
+        forward->y * right->z - forward->z * right->y
     }, {
-        -forward->y * up->z + forward->z * up->y,
+        right->z * up->x - right->x * up->z,
         forward->x * up->z - forward->z * up->x,
-        -forward->x * up->y + forward->y * up->x
+        forward->z * right->x - forward->x * right->z
     }, {
-        forward->y * right->z - forward->z * right->y,
-        -forward->x * right->z + forward->z * right->x,
+        right->x * up->y - right->y * up->x,
+        forward->y * up->x - forward->x * up->y,
         forward->x * right->y - forward->y * right->x
     }};
 
     point converted_separation_vector = {
-        x: (separation_vector.x * adjoint[0][0] + separation_vector.y * adjoint[0][1] + separation_vector.z  * adjoint[0][1]),
-        y: (separation_vector.x * adjoint[1][0] + separation_vector.y * adjoint[1][1] + separation_vector.z  * adjoint[1][2]),
-        z: (separation_vector.x * adjoint[2][0] + separation_vector.y * adjoint[2][1] + separation_vector.z  * adjoint[2][2])
+        x: (separation_vector.x * adjoint[0][0] + separation_vector.y * adjoint[1][0] + separation_vector.z  * adjoint[2][0]),
+        y: (separation_vector.x * adjoint[0][1] + separation_vector.y * adjoint[1][1] + separation_vector.z  * adjoint[2][1]),
+        z: (separation_vector.x * adjoint[0][2] + separation_vector.y * adjoint[1][2] + separation_vector.z  * adjoint[2][2])
     };
 
-    if (converted_separation_vector.x < 0) {
+    if (converted_separation_vector.x <= 0) {
         return;
     };
 
     centre = {
         position: {
-            x: (scale * converted_separation_vector.y / converted_separation_vector.x) + static_cast<float>(w / 2),
-            y: (scale * converted_separation_vector.z / converted_separation_vector.x) + static_cast<float>(h / 2)
+            x: (scale * converted_separation_vector.y / sqrt(converted_separation_vector.x * converted_separation_vector.x + converted_separation_vector.z * converted_separation_vector.z)) + static_cast<float>(w / 2),
+            y: (scale * converted_separation_vector.z / sqrt(converted_separation_vector.x * converted_separation_vector.x + converted_separation_vector.y * converted_separation_vector.y)) + static_cast<float>(h / 2)
         },
         color: {
             r: 0,
@@ -103,9 +103,9 @@ void render_object(flying_object* object, int h, int w, SDL_Renderer* renderer, 
         }
     };
     SDL_Vertex to_print[points_per_object * 3];
-    float distance = scale * object->radius / sqrt(separation_vector.x * separation_vector.x + 
-    separation_vector.y * separation_vector.y + 
-    separation_vector.z * separation_vector.z);
+    float distance = scale * object->radius / sqrt(converted_separation_vector.x * converted_separation_vector.x + 
+        converted_separation_vector.y * converted_separation_vector.y + 
+        converted_separation_vector.z * converted_separation_vector.z);
     for (int i = 0; i < points_per_object; i++) {
         to_print[i * 3] = {
             position: {
@@ -259,14 +259,14 @@ class gameState {
                     z: up_belief.z
                 };
                 up_belief = {
-                    x: cos_diff * up_belief.x + sin_diff * (turning_down - turning_up) * forward_belief.x,
-                    y: cos_diff * up_belief.y + sin_diff * (turning_down - turning_up) * forward_belief.y,
-                    z: cos_diff * up_belief.z + sin_diff * (turning_down - turning_up) * forward_belief.z
+                    x: cos_diff * up_belief.x + sin_diff * (turning_up - turning_down) * forward_belief.x,
+                    y: cos_diff * up_belief.y + sin_diff * (turning_up - turning_down) * forward_belief.y,
+                    z: cos_diff * up_belief.z + sin_diff * (turning_up - turning_down) * forward_belief.z
                 };
                 forward_belief = {
-                    x: cos_diff * forward_belief.x + sin_diff * (turning_up - turning_down) * temp_up.x,
-                    y: cos_diff * forward_belief.y + sin_diff * (turning_up - turning_down) * temp_up.y,
-                    z: cos_diff * forward_belief.z + sin_diff * (turning_up - turning_down) * temp_up.z
+                    x: cos_diff * forward_belief.x + sin_diff * (turning_down - turning_up) * temp_up.x,
+                    y: cos_diff * forward_belief.y + sin_diff * (turning_down - turning_up) * temp_up.y,
+                    z: cos_diff * forward_belief.z + sin_diff * (turning_down - turning_up) * temp_up.z
                 };
                 normalise(&up_belief);
                 normalise(&forward_belief);

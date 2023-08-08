@@ -17,8 +17,6 @@ To compile and play:
 ### Known bugs and missing features
 
  - Overlap of orbs does not correspond with distance
- - Edge cases involving the ship observing orbs at +/- PI/2 inclination causes rendering bugs around this region
- - Orbs behind the ship are visible as if they are in front
  - The current ship position is not visible
  - Dying closes the gui instead of rendering a "loss" screen
  - Orbs touching each other or the ship or each other has no effect and does not result in losing
