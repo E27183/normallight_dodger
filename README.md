@@ -7,6 +7,8 @@ To move:
  - Press space to accelerate forwards.
  - Press the left, right, up and down keys to steer in that direction.
  - Decelaration happens automatically over time
+ - To exit, press escape
+ - If you lose and want to play again, press primary enter (not keypad enter)
 
 To compile and play:
  - Ensure you have g++ and libsdl2-dev installed
@@ -17,6 +19,3 @@ To compile and play:
 ### Known bugs and missing features
 
  - Overlap of orbs does not correspond with distance
- - The current ship position is not visible
- - Dying closes the gui instead of rendering a "loss" screen
- - Orbs touching each other or the ship or each other has no effect and does not result in losing
