@@ -14,3 +14,8 @@ To compile and play:
  - Ensure you have g++, libsdl2-dev and libsdl2-ttf-dev installed
  - Download the source code
  - Navigate to the root folder and run ```make fullstack```
+
+Alternatively to just play:
+ - Download the normallight binary file and the ttf font file and ensure they're placed in the same directory
+ - On Linux, run ```chmod 700 normallight``` from the directory you placed it into to allow it to be runnable, then run with ```./normallight```
+ - On Windows, rename the binary to normallight.exe and then run it
