@@ -4,11 +4,15 @@
 #include "constants.h"
 #include <math.h>
 
+// Represents a point in space using cartesian coordinates
+
 struct point {
     float x;
     float y;
     float z;
 };
+
+// Represents the position, size and movement of a specific orb
 
 struct flying_object {
     point centre;
@@ -18,11 +22,15 @@ struct flying_object {
     float velocity;
 };
 
+// Represents the direction and magnitude of a vector in spherical coordinates. In this struct, the magnitude is called the velocity
+
 struct movement_charcteristics {
     float azimuth;
     float inclination;
     float velocity;
 };
+
+// Converts a vector in spherical coordinates to cartesian coordinates
 
 point to_cartesian(movement_charcteristics *angular) {
     point out;
@@ -32,22 +40,20 @@ point to_cartesian(movement_charcteristics *angular) {
     return out;
 };
 
+// Returns 1 multiplied by the sign of the input, or 0 if the input is 0
+
 float sign(float a) {
     return a > 0 ? 1.0 : a < 0 ? -1.0 : 0.0;
 };
+
+// Returns the max of 2 integers
 
 int max(int a, int b) {
     return a > b ? a : b;
 };
 
-movement_charcteristics to_polar(point *cartesian) {
-    movement_charcteristics out;
-    float r = sqrt(cartesian->x * cartesian->x + cartesian->y * cartesian->y + cartesian->z * cartesian->z);
-    out.velocity = r;
-    out.inclination = r == 0 ? 0 : acos(cartesian->z / r);
-    out.azimuth = (cartesian->x == 0 && cartesian->y == 0) ? 0 : sign(cartesian->y) * acos(cartesian->x / sqrt(cartesian->x * cartesian->x + cartesian->y * cartesian->y));
-    return out;
-};
+// Calculates if a flying object should be visible to the player, and if so where on screen
+// Does not calculate the determinant as it expects the perspectove basis vectors to always be orthonormal
 
 void render_object(flying_object *object, int h, int w, SDL_Renderer *renderer, float x, float y, float z, point *forward, point *right, point *up) {
 
@@ -60,11 +66,6 @@ void render_object(flying_object *object, int h, int w, SDL_Renderer *renderer, 
         y : object->centre.y - y,
         z : object->centre.z - z
     };
-
-    // Order is forward, right then up
-
-    // float determinant = forward->x * right->y * up->z + right->x * up->y * forward->z + up->x * forward->y * right->z -
-    //     forward->x * up->y * right->z - right->x * forward->y * up->z - up->x * right->y * forward->z; Is always 1 if normalising properly
 
     float adjoint[3][3] = {{right->y * up->z - right->z * up->y,
                             forward->z * up->y - forward->y * up->z,
@@ -120,9 +121,13 @@ void render_object(flying_object *object, int h, int w, SDL_Renderer *renderer, 
     SDL_RenderGeometry(renderer, NULL, to_print, points_per_object * 3, NULL, 0);
 };
 
+// Returns a random float between [min, max]
+
 float random_place(float min, float max) {
     return min + (max - min) * static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
 };
+
+// Creates a new orb at a random point on the boundary surface with random movement properties and radius within the bounds defined in constants.h
 
 void create_object(flying_object *shell) {
     int flag = rand() % 6;
@@ -182,11 +187,15 @@ void create_object(flying_object *shell) {
     shell->radius = object_min_radius + (object_max_radius - object_min_radius) * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX));
 };
 
+// Determines if an orb or the player is outside the boundary and should be killed
+
 bool out_of_bounds(float x, float y, float z, float tolerance) {
     return x > boundary_x_high + tolerance || x < boundary_x_low - tolerance ||
            y > boundary_y_high + tolerance || y < boundary_y_low - tolerance ||
            z > boundary_z_high + tolerance || z < boundary_z_low - tolerance;
 };
+
+// Converts a vector to unit length
 
 void normalise(point *a) {
     float divisor = sqrt(a->x * a->x + a->y * a->y + a->z * a->z);
@@ -195,17 +204,21 @@ void normalise(point *a) {
     a->z = a->z / divisor;
 };
 
+// Internal struct to support merge sort
+
 struct index_distance {
     int index;
     float distance;
 };
+
+// Merge sort implementation to allow rendering to print closer orbs on top of far orbs
 
 void index_sort(int start, int end, index_distance* arr) {
     if (end - start < 2) {
         return;
     };
     if (end - start == 2) {
-        if (arr[start].distance > arr[start + 1].distance) {
+        if (arr[start].distance < arr[start + 1].distance) {
             index_distance tmp = arr[start];
             arr[start] = arr[start + 1];
             arr[start + 1] = tmp;
@@ -219,7 +232,7 @@ void index_sort(int start, int end, index_distance* arr) {
     int pointer_1 = 0;
     int pointer_2 = (end - start) / 2;
     while (pointer_1 < (end - start) / 2 && pointer_2 < end - start) {
-        if (arr[start + pointer_1].distance < arr[start + pointer_2].distance) {
+        if (arr[start + pointer_1].distance > arr[start + pointer_2].distance) {
             out[i] = arr[start + pointer_1];
             pointer_1++;
         } else {
@@ -243,6 +256,8 @@ void index_sort(int start, int end, index_distance* arr) {
     };
 };
 
+// Main game state class
+
 class gameState {
     public:
         time_t start_time;
@@ -257,6 +272,9 @@ class gameState {
         point forward_belief;
         point right_belief;
         point up_belief;
+
+        // Places text in a char array to the top left or top right of the screen
+
         void drop_text(bool left, char* buffer, SDL_Color* colour, SDL_Renderer* renderer, TTF_Font* font, int w) {
             SDL_Surface *surfaceMessage = TTF_RenderText_Solid(font, buffer, *colour);
             SDL_Texture *Message = SDL_CreateTextureFromSurface(renderer, surfaceMessage);
@@ -265,6 +283,9 @@ class gameState {
             SDL_FreeSurface(surfaceMessage);
             SDL_DestroyTexture(Message);
         };
+
+        // Renders everything for a frame
+
         void render(SDL_Renderer* renderer, SDL_Window* window, TTF_Font* font, SDL_Color* colour) {
             SDL_RenderClear(renderer);
             int h;
@@ -292,6 +313,9 @@ class gameState {
             drop_text(false, &buffer[0], colour, renderer, font, w);
             SDL_RenderPresent(renderer);
         };
+
+        // Updates the physics of everything between frames
+
         void update(bool *game_over) {
             if (accelerating) {
                 player_velocity += forward_thruster_power * static_cast<float>(millisecond_frame_delay) / 1000.0f;
@@ -370,6 +394,9 @@ class gameState {
                 };
             };
         };
+
+        // Initialises variables before a new game
+
         void initialise() {
             start_time = time(NULL);
             player_x = 0;
@@ -390,6 +417,8 @@ class gameState {
         flying_object objects[scenario_max_objects];
         int object_count;
     };
+
+    // Handles relevant user key presses and discards non-relevant ones from event stack
 
     void handle_event(gameState* state, bool* game_over, bool* restarted) {
         SDL_Event event;
@@ -455,9 +484,13 @@ class gameState {
         };
 };
 
+// Returns the minimum of 2 integers
+
 int min(int a, int b) {
     return a > b ? b : a;
 };
+
+// Main library intialisation and game looop
 
 int main(int argc, char *argv[]) {
     srand(time(NULL));
