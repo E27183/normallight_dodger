@@ -16,8 +16,10 @@ To compile and play (Linux only):
  - Navigate to the root folder and run ```make fullstack```
 
 Alternatively to just play:
+
 On linux:
  - Download the normallight binary file and the ttf font file and ensure they're placed in the same directory
  - Run ```chmod 700 normallight``` from the directory you placed it into to allow it to be runnable, then run with ```./normallight```
+
 On Windows:
  - Download the ```windows package.zip``` and extract it anywhere. Then run the executable
