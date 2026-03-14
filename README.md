@@ -1,6 +1,6 @@
 ## NORMALLIGHT
 
-In this game, you must navigate within a large boundary box while avoiding contact with the ors flying around you! The game continues until you strike the boundary or an orb.
+In this game, you must navigate within a large boundary box while avoiding contact with the orbs flying around you! The game continues until you strike the boundary or an orb.
 
 To move:
 
